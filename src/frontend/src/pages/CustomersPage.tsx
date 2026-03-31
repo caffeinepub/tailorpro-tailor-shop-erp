@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDebounce } from "react-use";
 import { backend } from "../actor";
-import type { backendInterface as FullBackend } from "../backend.d";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 import {
@@ -20,7 +19,6 @@ import {
   TableHeader,
   TableRow,
 } from "../components/ui/table";
-import { useActor } from "../hooks/useActor";
 import { useStorageClient } from "../hooks/useStorageClient";
 import type { Customer, Measurements } from "../tailor-types";
 
@@ -99,8 +97,6 @@ export default function CustomersPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [photoCounts, setPhotoCounts] = useState<Record<string, number>>({});
 
-  const { actor: _actor } = useActor();
-  const actor = _actor as FullBackend | null;
   const storageClient = useStorageClient();
 
   // Two separate hidden inputs: one for gallery, one for camera
@@ -130,16 +126,16 @@ export default function CustomersPage() {
     loadCustomers();
   }, [loadCustomers]);
 
-  // Load photo counts from backend/actor
+  // Load photo counts from backend
   useEffect(() => {
-    if (!actor || customers.length === 0) return;
+    if (customers.length === 0) return;
     let cancelled = false;
     const loadCounts = async () => {
       const counts: Record<string, number> = {};
       await Promise.all(
         customers.map(async (c) => {
           try {
-            const urls = await actor.getCustomerPhotos(c.id);
+            const urls = await backend.getCustomerPhotos(c.id);
             counts[String(c.id)] = urls.length;
           } catch {
             counts[String(c.id)] = 0;
@@ -152,23 +148,19 @@ export default function CustomersPage() {
     return () => {
       cancelled = true;
     };
-  }, [actor, customers]);
+  }, [customers]);
 
-  const openPhotos = useCallback(
-    async (c: Customer) => {
-      setPhotosCustomer(c);
-      setPhotoError("");
-      setPhotos([]);
-      if (!actor) return;
-      try {
-        const urls = await actor.getCustomerPhotos(c.id);
-        setPhotos(urls);
-      } catch {
-        setPhotoError("Could not load photos. Please try again.");
-      }
-    },
-    [actor],
-  );
+  const openPhotos = useCallback(async (c: Customer) => {
+    setPhotosCustomer(c);
+    setPhotoError("");
+    setPhotos([]);
+    try {
+      const urls = await backend.getCustomerPhotos(c.id);
+      setPhotos(urls);
+    } catch {
+      setPhotoError("Could not load photos. Please try again.");
+    }
+  }, []);
 
   const closePhotos = useCallback(() => {
     setPhotosCustomer(null);
@@ -179,9 +171,9 @@ export default function CustomersPage() {
 
   const deletePhoto = useCallback(
     async (url: string) => {
-      if (!photosCustomer || !actor) return;
+      if (!photosCustomer) return;
       try {
-        await actor.deleteCustomerPhoto(photosCustomer.id, url);
+        await backend.deleteCustomerPhoto(photosCustomer.id, url);
         const updated = photos.filter((p) => p !== url);
         setPhotos(updated);
         setPhotoCounts((prev) => ({
@@ -192,12 +184,12 @@ export default function CustomersPage() {
         setPhotoError("Could not delete photo. Please try again.");
       }
     },
-    [photos, photosCustomer, actor],
+    [photos, photosCustomer],
   );
 
   const processFiles = useCallback(
     async (files: File[]) => {
-      if (!photosCustomer || files.length === 0 || !actor) return;
+      if (!photosCustomer || files.length === 0) return;
       if (!storageClient) {
         setPhotoError("Storage not ready. Please try again in a moment.");
         return;
@@ -217,7 +209,7 @@ export default function CustomersPage() {
             ),
           );
           const url = await storageClient.getDirectURL(hash);
-          await actor.addCustomerPhoto(photosCustomer.id, url);
+          await backend.addCustomerPhoto(photosCustomer.id, url);
           newUrls.push(url);
         }
         const updated = [...photos, ...newUrls];
@@ -234,7 +226,7 @@ export default function CustomersPage() {
         setUploadProgress(0);
       }
     },
-    [photosCustomer, actor, storageClient, photos],
+    [photosCustomer, storageClient, photos],
   );
 
   const handleFileChange = useCallback(

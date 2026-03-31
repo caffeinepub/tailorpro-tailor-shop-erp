@@ -58,6 +58,8 @@ export default function OrdersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [filter, setFilter] = useState("All");
   const [sortBy, setSortBy] = useState<SortOption>("newest");
+  const [newOrderCustomerSort, setNewOrderCustomerSort] =
+    useState<SortOption>("nameAZ");
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({
     customerId: "",
@@ -139,6 +141,25 @@ export default function OrdersPage() {
     }
     return list;
   }, [orders, filter, sortBy]);
+
+  const sortedDialogCustomers = useMemo(() => {
+    const list = [...customers];
+    switch (newOrderCustomerSort) {
+      case "nameAZ":
+        list.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case "nameZA":
+        list.sort((a, b) => b.name.localeCompare(a.name));
+        break;
+      case "newest":
+        list.sort((a, b) => Number(b.id) - Number(a.id));
+        break;
+      case "oldest":
+        list.sort((a, b) => Number(a.id) - Number(b.id));
+        break;
+    }
+    return list;
+  }, [customers, newOrderCustomerSort]);
 
   const addOrder = async () => {
     const cust = customers.find((c) => String(c.id) === form.customerId);
@@ -252,6 +273,7 @@ export default function OrdersPage() {
         <Button
           onClick={() => setShowAdd(true)}
           className="bg-[#1F7E78] hover:bg-[#166661] text-white"
+          data-ocid="orders.open_modal_button"
         >
           + New Order
         </Button>
@@ -278,7 +300,10 @@ export default function OrdersPage() {
           value={sortBy}
           onValueChange={(v) => setSortBy(v as SortOption)}
         >
-          <SelectTrigger className="w-[150px] text-xs h-8">
+          <SelectTrigger
+            className="w-[150px] text-xs h-8"
+            data-ocid="orders.select"
+          >
             <SelectValue placeholder="Sort" />
           </SelectTrigger>
           <SelectContent>
@@ -313,6 +338,7 @@ export default function OrdersPage() {
                     <TableCell
                       colSpan={9}
                       className="text-center text-sm text-gray-400 py-8"
+                      data-ocid="orders.empty_state"
                     >
                       No orders
                     </TableCell>
@@ -397,24 +423,45 @@ export default function OrdersPage() {
 
       {/* New Order Dialog */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md" data-ocid="orders.dialog">
           <DialogHeader>
             <DialogTitle>New Order</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <p className="text-xs font-semibold text-gray-600 mb-0.5">
-                Customer *
-              </p>
+              <div className="flex items-center justify-between mb-0.5">
+                <p className="text-xs font-semibold text-gray-600">
+                  Customer *
+                </p>
+                <Select
+                  value={newOrderCustomerSort}
+                  onValueChange={(v) =>
+                    setNewOrderCustomerSort(v as SortOption)
+                  }
+                >
+                  <SelectTrigger
+                    className="h-6 text-[10px] w-[110px] px-2 border-gray-200 text-gray-500"
+                    data-ocid="orders.customer.select"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nameAZ">Name A→Z</SelectItem>
+                    <SelectItem value="nameZA">Name Z→A</SelectItem>
+                    <SelectItem value="newest">Newest First</SelectItem>
+                    <SelectItem value="oldest">Oldest First</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <Select
                 value={form.customerId}
                 onValueChange={(v) => setForm({ ...form, customerId: v })}
               >
-                <SelectTrigger>
+                <SelectTrigger data-ocid="orders.customer.input">
                   <SelectValue placeholder="Select customer" />
                 </SelectTrigger>
-                <SelectContent>
-                  {customers.map((c) => (
+                <SelectContent className="max-h-52 overflow-y-auto">
+                  {sortedDialogCustomers.map((c) => (
                     <SelectItem key={String(c.id)} value={String(c.id)}>
                       {c.name}
                     </SelectItem>
@@ -524,12 +571,17 @@ export default function OrdersPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAdd(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowAdd(false)}
+              data-ocid="orders.cancel_button"
+            >
               Cancel
             </Button>
             <Button
               className="bg-[#1F7E78] hover:bg-[#166661] text-white"
               onClick={addOrder}
+              data-ocid="orders.submit_button"
             >
               Create Order
             </Button>

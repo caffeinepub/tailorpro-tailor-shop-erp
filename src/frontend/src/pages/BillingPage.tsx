@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { backend } from "../actor";
 import { StatusBadge } from "../components/StatusBadge";
 import { Button } from "../components/ui/button";
@@ -31,6 +31,7 @@ import { fmt, garmentKey, paymentStatusKey } from "../lib/helpers";
 import type { Customer, Invoice, Order } from "../tailor-types";
 
 type CustomerSort = "name-asc" | "name-desc" | "newest" | "oldest";
+type InvoiceSort = "newest" | "oldest" | "name-asc" | "name-desc";
 
 function WhatsAppIcon() {
   return (
@@ -68,6 +69,7 @@ export default function BillingPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [customerSort, setCustomerSort] = useState<CustomerSort>("name-asc");
+  const [invoiceSort, setInvoiceSort] = useState<InvoiceSort>("newest");
   const [form, setForm] = useState({
     orderId: "",
     subtotal: "",
@@ -105,6 +107,18 @@ export default function BillingPage() {
 
   // Customers sorted for display in the dialog (no data mutation)
   const sortedCustomers = sortCustomers(customers, customerSort);
+  const sortedInvoices = useMemo(() => {
+    const copy = [...invoices];
+    if (invoiceSort === "newest")
+      return copy.sort((a, b) => Number(b.id) - Number(a.id));
+    if (invoiceSort === "oldest")
+      return copy.sort((a, b) => Number(a.id) - Number(b.id));
+    if (invoiceSort === "name-asc")
+      return copy.sort((a, b) => a.customerName.localeCompare(b.customerName));
+    if (invoiceSort === "name-desc")
+      return copy.sort((a, b) => b.customerName.localeCompare(a.customerName));
+    return copy;
+  }, [invoices, invoiceSort]);
 
   // Orders filtered by selected customer
   const filteredOrders =
@@ -390,23 +404,43 @@ export default function BillingPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h1 className="text-2xl font-bold text-[#111827]">
           Billing & Invoices
         </h1>
-        <Button
-          onClick={openAdd}
-          className="bg-[#1F7E78] hover:bg-[#166661] text-white"
-          data-ocid="billing.create_invoice.primary_button"
-        >
-          + Create Invoice
-        </Button>
+        <div className="flex items-center gap-2">
+          <Select
+            value={invoiceSort}
+            onValueChange={(v) => setInvoiceSort(v as InvoiceSort)}
+          >
+            <SelectTrigger
+              className="w-40 text-xs h-8"
+              data-ocid="billing.sort.select"
+            >
+              <SelectValue placeholder="Sort" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">Newest First</SelectItem>
+              <SelectItem value="oldest">Oldest First</SelectItem>
+              <SelectItem value="name-asc">Name A→Z</SelectItem>
+              <SelectItem value="name-desc">Name Z→A</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            onClick={openAdd}
+            className="bg-[#1F7E78] hover:bg-[#166661] text-white"
+            data-ocid="billing.create_invoice.primary_button"
+          >
+            + Create Invoice
+          </Button>
+        </div>
       </div>
       <Card className="border-0 shadow-sm">
         <CardContent className="px-0 py-0">
           <Table>
             <TableHeader>
               <TableRow className="bg-gray-50">
+                <TableHead className="text-xs w-10">S.No.</TableHead>
                 <TableHead className="text-xs">Invoice #</TableHead>
                 <TableHead className="text-xs">Customer</TableHead>
                 <TableHead className="text-xs">Order #</TableHead>
@@ -423,7 +457,7 @@ export default function BillingPage() {
               {invoices.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={10}
+                    colSpan={11}
                     className="text-center text-sm text-gray-400 py-8"
                     data-ocid="billing.invoice.empty_state"
                   >
@@ -431,8 +465,11 @@ export default function BillingPage() {
                   </TableCell>
                 </TableRow>
               )}
-              {invoices.map((inv) => (
+              {sortedInvoices.map((inv, idx) => (
                 <TableRow key={String(inv.id)}>
+                  <TableCell className="text-xs text-gray-500">
+                    {idx + 1}
+                  </TableCell>
                   <TableCell className="text-xs font-mono">
                     INV-{String(inv.id).padStart(3, "0")}
                   </TableCell>
@@ -543,7 +580,7 @@ export default function BillingPage() {
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Filter by customer (optional)" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-52 overflow-y-auto">
                     <SelectItem value="all">All customers</SelectItem>
                     {sortedCustomers.map((c) => (
                       <SelectItem key={String(c.id)} value={String(c.id)}>
