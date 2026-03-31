@@ -79,6 +79,7 @@ export default function BillingPage() {
   const [invoiceSort, setInvoiceSort] = useState<InvoiceSort>("newest");
   const [stripeConfigured, setStripeConfigured] = useState(false);
   const [payingInvoiceId, setPayingInvoiceId] = useState<bigint | null>(null);
+  const [loading, setLoading] = useState(true);
   const [upiDialog, setUpiDialog] = useState<{
     open: boolean;
     inv: Invoice | null;
@@ -108,6 +109,7 @@ export default function BillingPage() {
       setOrders(ord);
       setCustomers(cust);
       setStripeConfigured(stripeCfg);
+      setLoading(false);
     });
   }, []);
 
@@ -144,7 +146,10 @@ export default function BillingPage() {
     return s - d + t;
   };
 
-  const sortedCustomers = sortCustomers(customers, customerSort);
+  const sortedCustomers = useMemo(
+    () => sortCustomers(customers, customerSort),
+    [customers, customerSort],
+  );
   const sortedInvoices = useMemo(() => {
     const copy = [...invoices];
     if (invoiceSort === "newest")
@@ -228,8 +233,8 @@ export default function BillingPage() {
             quantity: BigInt(1),
           },
         ],
-        url,
         successUrl,
+        url,
       );
       window.open(checkoutUrl, "_blank");
     } catch {
@@ -476,6 +481,14 @@ export default function BillingPage() {
     `);
     win.document.close();
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1F7E78]" />
+      </div>
+    );
+  }
 
   return (
     <div>

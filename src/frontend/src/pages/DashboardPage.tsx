@@ -28,6 +28,7 @@ import type { Appointment, DashboardStats, Order } from "../tailor-types";
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
 
@@ -39,6 +40,7 @@ export default function DashboardPage() {
     ]).then(([s, o, a]) => {
       setStats(s);
       setOrders(o.slice(-5).reverse());
+      setLoading(false);
       setAppointments(
         a.filter((x) => apptStatusKey(x.status) === "Scheduled").slice(0, 5),
       );
@@ -65,6 +67,14 @@ export default function DashboardPage() {
     "Nov",
     "Dec",
   ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1F7E78]" />
+      </div>
+    );
+  }
 
   return (
     <div>

@@ -98,6 +98,7 @@ export default function CustomersPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [photoCounts, setPhotoCounts] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(true);
 
   const storageClient = useStorageClient();
 
@@ -121,36 +122,16 @@ export default function CustomersPage() {
   });
 
   const loadCustomers = useCallback(
-    () => backend.getCustomers().then(setCustomers),
+    () =>
+      backend.getCustomers().then((list) => {
+        setCustomers(list);
+        setLoading(false);
+      }),
     [],
   );
   useEffect(() => {
     loadCustomers();
   }, [loadCustomers]);
-
-  // Load photo counts from backend
-  useEffect(() => {
-    if (customers.length === 0) return;
-    let cancelled = false;
-    const loadCounts = async () => {
-      const counts: Record<string, number> = {};
-      await Promise.all(
-        customers.map(async (c) => {
-          try {
-            const urls = await backend.getCustomerPhotos(c.id);
-            counts[String(c.id)] = urls.length;
-          } catch {
-            counts[String(c.id)] = 0;
-          }
-        }),
-      );
-      if (!cancelled) setPhotoCounts(counts);
-    };
-    loadCounts();
-    return () => {
-      cancelled = true;
-    };
-  }, [customers]);
 
   const openPhotos = useCallback(async (c: Customer) => {
     setPhotosCustomer(c);
@@ -159,6 +140,7 @@ export default function CustomersPage() {
     try {
       const urls = await backend.getCustomerPhotos(c.id);
       setPhotos(urls);
+      setPhotoCounts((prev) => ({ ...prev, [String(c.id)]: urls.length }));
     } catch {
       setPhotoError("Could not load photos. Please try again.");
     }
@@ -378,6 +360,14 @@ export default function CustomersPage() {
     { key: "trouserLength", label: "Trouser Length" },
     { key: "neck", label: "Neck" },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1F7E78]" />
+      </div>
+    );
+  }
 
   return (
     <div>

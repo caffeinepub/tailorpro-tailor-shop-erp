@@ -374,7 +374,6 @@ export default function StaffPage() {
   const [viewCard, setViewCard] = useState<Staff | null>(null);
   const [setPwStaff, setSetPwStaff] = useState<Staff | null>(null);
   const [search, setSearch] = useState("");
-  const [_pwRefresh, setPwRefresh] = useState(0);
   const [staffHasPassword, setStaffHasPassword] = useState<
     Record<string, boolean>
   >({});
@@ -496,7 +495,6 @@ export default function StaffPage() {
 
   const handleSetPwClose = () => {
     setSetPwStaff(null);
-    setPwRefresh((n) => n + 1);
     load();
   };
 
@@ -507,7 +505,6 @@ export default function StaffPage() {
       )
     ) {
       await backend.deleteStaffCredentials(phone.trim());
-      setPwRefresh((n) => n + 1);
       load();
     }
   };

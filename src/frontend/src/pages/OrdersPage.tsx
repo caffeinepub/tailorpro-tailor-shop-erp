@@ -61,6 +61,8 @@ export default function OrdersPage() {
   const [newOrderCustomerSort, setNewOrderCustomerSort] =
     useState<SortOption>("nameAZ");
   const [showAdd, setShowAdd] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [formError, setFormError] = useState("");
   const [form, setForm] = useState({
     customerId: "",
     garmentType: "Shirt",
@@ -89,6 +91,7 @@ export default function OrdersPage() {
       ([o, c]) => {
         setOrders(o);
         setCustomers(c);
+        setLoading(false);
       },
     );
   }, []);
@@ -162,8 +165,12 @@ export default function OrdersPage() {
   }, [customers, newOrderCustomerSort]);
 
   const addOrder = async () => {
+    setFormError("");
     const cust = customers.find((c) => String(c.id) === form.customerId);
-    if (!cust) return;
+    if (!cust) {
+      setFormError("Please select a customer.");
+      return;
+    }
     const gt = { [form.garmentType]: null } as GarmentType;
     await backend.addOrder(
       cust.id,
@@ -266,12 +273,23 @@ export default function OrdersPage() {
     setWaDialog({ open: false, message: "", phone: "", title: "" });
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1F7E78]" />
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-[#111827]">Orders</h1>
         <Button
-          onClick={() => setShowAdd(true)}
+          onClick={() => {
+            setShowAdd(true);
+            setFormError("");
+          }}
           className="bg-[#1F7E78] hover:bg-[#166661] text-white"
           data-ocid="orders.open_modal_button"
         >
@@ -570,6 +588,11 @@ export default function OrdersPage() {
               </div>
             </div>
           </div>
+          {formError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2">
+              ⚠️ {formError}
+            </div>
+          )}
           <DialogFooter>
             <Button
               variant="outline"
