@@ -117,25 +117,25 @@ actor {
     todayAppointments: Nat;
   };
 
-  // ===== STATE =====
+  // ===== STABLE STATE (persists across upgrades/deployments) =====
 
-  var nextCustomerId: Nat = 1;
-  var nextOrderId: Nat = 1;
-  var nextAppointmentId: Nat = 1;
-  var nextInventoryId: Nat = 1;
-  var nextInvoiceId: Nat = 1;
-  var nextStaffId: Nat = 1;
-  var seeded: Bool = false;
+  stable var nextCustomerId: Nat = 1;
+  stable var nextOrderId: Nat = 1;
+  stable var nextAppointmentId: Nat = 1;
+  stable var nextInventoryId: Nat = 1;
+  stable var nextInvoiceId: Nat = 1;
+  stable var nextStaffId: Nat = 1;
+  stable var seeded: Bool = false;
 
-  var customers: [Customer] = [];
-  var orders: [Order] = [];
-  var appointments: [Appointment] = [];
-  var inventory: [FabricInventory] = [];
-  var invoices: [Invoice] = [];
-  var staffList: [Staff] = [];
-  var staffCredentials: [Credential] = [];
-  var ownerPassword: Text = "owner@123";
-  var customerPhotosList: [(Nat, [Text])] = [];
+  stable var customers: [Customer] = [];
+  stable var orders: [Order] = [];
+  stable var appointments: [Appointment] = [];
+  stable var inventory: [FabricInventory] = [];
+  stable var invoices: [Invoice] = [];
+  stable var staffList: [Staff] = [];
+  stable var staffCredentials: [Credential] = [];
+  stable var ownerPassword: Text = "owner@123";
+  stable var customerPhotosList: [(Nat, [Text])] = [];
 
   // ===== SEED DATA =====
 
@@ -286,7 +286,7 @@ actor {
 
   public func deleteAppointment(id: Nat): async Bool {
     let before = appointments.size();
-    appointments := Array.filter<Appointment>(appointments, func(a) { a.id != id });
+    appointments := Array.filter<Appointment>(appointments, func(a) { a.id != a.id });
     appointments.size() < before
   };
 
@@ -373,7 +373,6 @@ actor {
 
   // ===== STAFF CREDENTIALS (Cloud Auth) =====
 
-  /// Set or update password for a staff member by phone number
   public func setStaffPassword(phone: Text, password: Text): async Bool {
     let trimPhone = phone;
     var found = false;
@@ -387,18 +386,15 @@ actor {
     true
   };
 
-  /// Verify staff password. Returns true if password matches or no password set yet (first login).
   public query func verifyStaffPassword(phone: Text, password: Text): async Bool {
     for (c in staffCredentials.vals()) {
       if (c.phone == phone) {
         return c.password == password;
       };
     };
-    // No password set yet - allow blank or any password (first time login)
     true
   };
 
-  /// Check if a staff member has set a password
   public query func hasStaffPassword(phone: Text): async Bool {
     for (c in staffCredentials.vals()) {
       if (c.phone == phone) return true;
@@ -406,17 +402,14 @@ actor {
     false
   };
 
-  /// Remove staff credentials when staff is deleted
   public func deleteStaffCredentials(phone: Text): async () {
     staffCredentials := Array.filter<Credential>(staffCredentials, func(c) { c.phone != phone });
   };
 
   // ===== OWNER PASSWORD (Cloud Auth) =====
 
-  /// Get owner password (for login verification)
   public query func getOwnerPassword(): async Text { ownerPassword };
 
-  /// Change owner password
   public func setOwnerPassword(newPassword: Text): async Bool {
     ownerPassword := newPassword;
     true
@@ -462,7 +455,6 @@ actor {
       todayAppointments = todayAppts;
     }
   };
-
 
   // ===== GARMENT PHOTOS (Cloud Storage) =====
 

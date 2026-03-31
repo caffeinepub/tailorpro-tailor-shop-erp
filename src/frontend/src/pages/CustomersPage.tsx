@@ -26,6 +26,59 @@ import type { Customer, Measurements } from "../tailor-types";
 
 type SortOption = "default" | "name_asc" | "name_desc" | "newest" | "oldest";
 
+/** Compress an image File using the Canvas API.
+ *  Max dimension: 1600px. Output: JPEG @ 0.82 quality.
+ *  Returns a Uint8Array of the compressed bytes.
+ */
+async function compressImage(file: File): Promise<Uint8Array> {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const MAX = 1600;
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        if (width >= height) {
+          height = Math.round((height / width) * MAX);
+          width = MAX;
+        } else {
+          width = Math.round((width / height) * MAX);
+          height = MAX;
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Could not get canvas context"));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("Canvas toBlob returned null"));
+            return;
+          }
+          blob
+            .arrayBuffer()
+            .then((buf) => resolve(new Uint8Array(buf)))
+            .catch(reject);
+        },
+        "image/jpeg",
+        0.82,
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Image load failed"));
+    };
+    img.src = objectUrl;
+  });
+}
+
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");
@@ -157,7 +210,7 @@ export default function CustomersPage() {
         const newUrls: string[] = [];
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
-          const bytes = new Uint8Array(await file.arrayBuffer());
+          const bytes = await compressImage(file);
           const { hash } = await storageClient.putFile(bytes, (pct) =>
             setUploadProgress(
               Math.round(((i + pct / 100) / files.length) * 100),
