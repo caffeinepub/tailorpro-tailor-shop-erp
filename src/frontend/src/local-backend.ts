@@ -1042,6 +1042,36 @@ class LocalBackend implements TailorBackend {
     await idbSet("photos", key, updated);
     return true;
   }
+
+  // Stripe payment stubs (not available in local fallback)
+  async isStripeConfigured(): Promise<boolean> {
+    return false;
+  }
+  async getStripeConfiguration(): Promise<
+    import("./tailor-types").StripeConfiguration | null
+  > {
+    return null;
+  }
+  async setStripeConfiguration(
+    _config: import("./tailor-types").StripeConfiguration,
+  ): Promise<void> {
+    // no-op in local mode
+  }
+  async createCheckoutSession(
+    _items: import("./tailor-types").ShoppingItem[],
+    _successUrl: string,
+    _cancelUrl: string,
+  ): Promise<string> {
+    throw new Error("Stripe not available in local mode");
+  }
+  async getStripeSessionStatus(
+    _sessionId: string,
+  ): Promise<import("./tailor-types").StripeSessionStatus> {
+    return {
+      __kind__: "failed",
+      failed: { error: "Not available in local mode" },
+    };
+  }
 }
 
 export const localBackend = new LocalBackend();

@@ -133,6 +133,26 @@ export interface DashboardStats {
   todayAppointments: bigint;
 }
 
+export interface ShoppingItem {
+  currency: string;
+  productName: string;
+  productDescription: string;
+  priceInCents: bigint;
+  quantity: bigint;
+}
+
+export interface StripeConfiguration {
+  secretKey: string;
+  allowedCountries: string[];
+}
+
+export type StripeSessionStatus =
+  | {
+      __kind__: "completed";
+      completed: { userPrincipal?: string; response: string };
+    }
+  | { __kind__: "failed"; failed: { error: string } };
+
 export interface TailorBackend {
   seedData(): Promise<void>;
   getDashboardStats(): Promise<DashboardStats>;
@@ -248,4 +268,14 @@ export interface TailorBackend {
   addCustomerPhoto(customerId: bigint, hash: string): Promise<boolean>;
   getCustomerPhotos(customerId: bigint): Promise<string[]>;
   deleteCustomerPhoto(customerId: bigint, hash: string): Promise<boolean>;
+  // Stripe payment integration
+  isStripeConfigured(): Promise<boolean>;
+  getStripeConfiguration(): Promise<StripeConfiguration | null>;
+  setStripeConfiguration(config: StripeConfiguration): Promise<void>;
+  createCheckoutSession(
+    items: ShoppingItem[],
+    successUrl: string,
+    cancelUrl: string,
+  ): Promise<string>;
+  getStripeSessionStatus(sessionId: string): Promise<StripeSessionStatus>;
 }

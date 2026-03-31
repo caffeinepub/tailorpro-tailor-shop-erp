@@ -1,4 +1,6 @@
+import { CreditCard, Eye, EyeOff } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { backend } from "../actor";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -14,6 +16,13 @@ export default function OwnerSettingsPage() {
   const [name, setName] = useState("Shop Owner");
   const [mobile] = useState("9999999999");
 
+  // Stripe settings
+  const [stripeSecretKey, setStripeSecretKey] = useState("");
+  const [stripeCountries, setStripeCountries] = useState("IN,US");
+  const [showSecretKey, setShowSecretKey] = useState(false);
+  const [stripeSaving, setStripeSaving] = useState(false);
+  const [stripeLoading, setStripeLoading] = useState(true);
+
   useEffect(() => {
     // Load owner name from session if available
     try {
@@ -23,6 +32,19 @@ export default function OwnerSettingsPage() {
         if (parsed.name) setName(parsed.name);
       }
     } catch {}
+  }, []);
+
+  useEffect(() => {
+    backend
+      .getStripeConfiguration()
+      .then((cfg) => {
+        if (cfg) {
+          setStripeSecretKey(cfg.secretKey);
+          setStripeCountries(cfg.allowedCountries.join(","));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setStripeLoading(false));
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -56,6 +78,29 @@ export default function OwnerSettingsPage() {
       setError("Failed to save settings. Please try again.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveStripe = async () => {
+    if (!stripeSecretKey.trim()) {
+      toast.error("Please enter a Stripe Secret Key.");
+      return;
+    }
+    setStripeSaving(true);
+    try {
+      const allowedCountries = stripeCountries
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      await backend.setStripeConfiguration({
+        secretKey: stripeSecretKey.trim(),
+        allowedCountries,
+      });
+      toast.success("Stripe settings saved successfully!");
+    } catch {
+      toast.error("Failed to save Stripe settings. Please try again.");
+    } finally {
+      setStripeSaving(false);
     }
   };
 
@@ -152,10 +197,106 @@ export default function OwnerSettingsPage() {
             className="w-full font-semibold text-white"
             style={{ background: "#b45309" }}
             disabled={loading}
+            data-ocid="settings.save_button"
           >
             {loading ? "Saving..." : "Save Changes"}
           </Button>
         </form>
+      </div>
+
+      {/* Stripe Payment Settings */}
+      <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center gap-2 mb-1">
+          <CreditCard className="w-5 h-5 text-indigo-600" />
+          <h2 className="text-lg font-bold text-gray-900">Payment Settings</h2>
+        </div>
+        <p className="text-sm text-gray-500 mb-5">
+          Configure Stripe to accept online payments from customers.
+        </p>
+
+        {stripeLoading ? (
+          <div
+            className="text-sm text-gray-400 py-4 text-center"
+            data-ocid="settings.stripe.loading_state"
+          >
+            Loading Stripe configuration...
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <label
+                htmlFor="stripe-secret"
+                className="block text-sm font-semibold text-gray-700 mb-1"
+              >
+                Stripe Secret Key
+              </label>
+              <div className="relative">
+                <Input
+                  id="stripe-secret"
+                  type={showSecretKey ? "text" : "password"}
+                  value={stripeSecretKey}
+                  onChange={(e) => setStripeSecretKey(e.target.value)}
+                  placeholder="sk_live_... or sk_test_..."
+                  className="pr-10"
+                  data-ocid="settings.stripe.input"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSecretKey((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  aria-label={showSecretKey ? "Hide key" : "Show key"}
+                  data-ocid="settings.stripe.toggle"
+                >
+                  {showSecretKey ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                Find your key at{" "}
+                <a
+                  href="https://dashboard.stripe.com/apikeys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-500 hover:underline"
+                >
+                  dashboard.stripe.com/apikeys
+                </a>
+              </p>
+            </div>
+
+            <div>
+              <label
+                htmlFor="stripe-countries"
+                className="block text-sm font-semibold text-gray-700 mb-1"
+              >
+                Allowed Countries
+              </label>
+              <Input
+                id="stripe-countries"
+                value={stripeCountries}
+                onChange={(e) => setStripeCountries(e.target.value)}
+                placeholder="IN,US,GB"
+                data-ocid="settings.stripe_countries.input"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Comma-separated country codes (e.g. IN,US,GB). Default: IN,US
+              </p>
+            </div>
+
+            <Button
+              type="button"
+              onClick={handleSaveStripe}
+              disabled={stripeSaving}
+              className="w-full font-semibold text-white bg-indigo-600 hover:bg-indigo-700"
+              data-ocid="settings.stripe.save_button"
+            >
+              {stripeSaving ? "Saving..." : "Save Payment Settings"}
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">

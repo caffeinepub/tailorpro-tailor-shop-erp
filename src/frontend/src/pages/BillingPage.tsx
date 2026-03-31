@@ -1,4 +1,6 @@
+import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { backend } from "../actor";
 import { StatusBadge } from "../components/StatusBadge";
 import { Button } from "../components/ui/button";
@@ -70,6 +72,8 @@ export default function BillingPage() {
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [customerSort, setCustomerSort] = useState<CustomerSort>("name-asc");
   const [invoiceSort, setInvoiceSort] = useState<InvoiceSort>("newest");
+  const [stripeConfigured, setStripeConfigured] = useState(false);
+  const [payingInvoiceId, setPayingInvoiceId] = useState<bigint | null>(null);
   const [form, setForm] = useState({
     orderId: "",
     subtotal: "",
@@ -88,10 +92,12 @@ export default function BillingPage() {
       backend.getInvoices(),
       backend.getOrders(),
       backend.getCustomers(),
-    ]).then(([inv, ord, cust]) => {
+      backend.isStripeConfigured(),
+    ]).then(([inv, ord, cust, stripeCfg]) => {
       setInvoices(inv);
       setOrders(ord);
       setCustomers(cust);
+      setStripeConfigured(stripeCfg);
     });
   }, []);
   useEffect(() => {
@@ -160,8 +166,33 @@ export default function BillingPage() {
   };
 
   const markPaid = async (id: bigint) => {
-    await backend.updateInvoicePayment(id, { Paid: null });
+    await backend.updateInvoicePayment(id, { Paid: null } as any);
     load();
+  };
+
+  const payOnline = async (inv: Invoice) => {
+    setPayingInvoiceId(inv.id);
+    try {
+      const url = window.location.href;
+      const checkoutUrl = await backend.createCheckoutSession(
+        [
+          {
+            currency: "usd",
+            productName: `Invoice #${String(inv.id).padStart(3, "0")}`,
+            productDescription: `Ali Tailor - ${inv.customerName}`,
+            priceInCents: BigInt(Math.round(inv.total * 100)),
+            quantity: BigInt(1),
+          },
+        ],
+        url,
+        url,
+      );
+      window.open(checkoutUrl, "_blank");
+    } catch {
+      toast.error("Failed to create payment session. Please try again.");
+    } finally {
+      setPayingInvoiceId(null);
+    }
   };
 
   const sendWhatsApp = (inv: Invoice) => {
@@ -502,6 +533,28 @@ export default function BillingPage() {
                           Mark Paid
                         </button>
                       )}
+                      {stripeConfigured &&
+                        paymentStatusKey(inv.paymentStatus) !== "Paid" && (
+                          <button
+                            type="button"
+                            onClick={() => payOnline(inv)}
+                            disabled={payingInvoiceId === inv.id}
+                            className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                            title="Pay Online via Stripe"
+                            data-ocid="billing.pay_online.button"
+                          >
+                            {payingInvoiceId === inv.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <span>💳</span>
+                            )}
+                            <span>
+                              {payingInvoiceId === inv.id
+                                ? "Opening..."
+                                : "Pay Online"}
+                            </span>
+                          </button>
+                        )}
                       <button
                         type="button"
                         onClick={() => sendWhatsApp(inv)}
