@@ -80,10 +80,10 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-[1fr_300px] gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_300px] gap-4 md:gap-6">
         <div className="space-y-6">
           {/* KPI Cards */}
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
             <Card
               className="border-0 shadow-sm"
               style={{ background: "#DFF3E6" }}

@@ -1,11 +1,43 @@
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Ali Tailor</title>
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Theme color for browser chrome -->
+    <meta name="theme-color" content="#d4af37" />
+
+    <!-- iOS PWA support -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Ali Tailor" />
+    <link rel="apple-touch-icon" href="/assets/generated/ali-tailor-icon-transparent.dim_512x512.png" />
+
+    <!-- Android/PWA meta -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="Ali Tailor" />
+    <meta name="description" content="ERP app for Ali Tailor Shop - Customers, Orders, Billing & more" />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js')
+            .then(function(reg) {
+              console.log('Ali Tailor SW registered:', reg.scope);
+            })
+            .catch(function(err) {
+              console.log('SW registration failed:', err);
+            });
+        });
+      }
+    </script>
   </body>
 </html>

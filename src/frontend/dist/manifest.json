@@ -1,0 +1,27 @@
+{
+  "name": "Ali Tailor - Tailor Shop ERP",
+  "short_name": "Ali Tailor",
+  "description": "ERP app for Ali Tailor Shop - Manage customers, orders, measurements, and more",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a1628",
+  "theme_color": "#d4af37",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/assets/generated/ali-tailor-icon-transparent.dim_512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/generated/ali-tailor-icon-transparent.dim_512x512.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "screenshots": []
+}
