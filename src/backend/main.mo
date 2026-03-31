@@ -9,9 +9,9 @@ import Stripe "stripe/stripe";
 import OutCall "http-outcalls/outcall";
 import MixinAuthorization "authorization/MixinAuthorization";
 import MixinStorage "blob-storage/Mixin";
-import Migration "migration";
 
-(with migration = Migration.run)
+
+
 actor {
   // ===== TYPES =====
 

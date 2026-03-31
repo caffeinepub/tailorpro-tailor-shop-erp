@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import { Check, Copy, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { backend } from "../actor";
@@ -34,6 +34,11 @@ import type { Customer, Invoice, Order } from "../tailor-types";
 
 type CustomerSort = "name-asc" | "name-desc" | "newest" | "oldest";
 type InvoiceSort = "newest" | "oldest" | "name-asc" | "name-desc";
+
+const UPI_ID = "9354556174@kotak811";
+const UPI_NAME = "ANEMA BIBI";
+const QR_PATH =
+  "/assets/1f58bf32-eb61-48c8-837c-8938cbf6c4ae-019d4428-a138-709d-a174-992c548b900e.jpeg";
 
 function WhatsAppIcon() {
   return (
@@ -74,6 +79,11 @@ export default function BillingPage() {
   const [invoiceSort, setInvoiceSort] = useState<InvoiceSort>("newest");
   const [stripeConfigured, setStripeConfigured] = useState(false);
   const [payingInvoiceId, setPayingInvoiceId] = useState<bigint | null>(null);
+  const [upiDialog, setUpiDialog] = useState<{
+    open: boolean;
+    inv: Invoice | null;
+  }>({ open: false, inv: null });
+  const [upiCopied, setUpiCopied] = useState(false);
   const [form, setForm] = useState({
     orderId: "",
     subtotal: "",
@@ -100,8 +110,31 @@ export default function BillingPage() {
       setStripeConfigured(stripeCfg);
     });
   }, []);
+
   useEffect(() => {
     load();
+  }, [load]);
+
+  // Auto-mark paid when returning from Stripe payment success
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentSuccess = params.get("payment_success");
+    const invId = params.get("inv_id");
+    if (paymentSuccess === "1" && invId) {
+      history.replaceState({}, "", window.location.pathname);
+      backend
+        .updateInvoicePayment(BigInt(invId), { Paid: null } as any)
+        .then(() => {
+          toast.success("✅ Payment successful! Invoice marked as Paid.");
+          load();
+        })
+        .catch(() => {
+          toast.error(
+            "Payment received but could not mark invoice as paid. Please mark manually.",
+          );
+          load();
+        });
+    }
   }, [load]);
 
   const total = () => {
@@ -111,7 +144,6 @@ export default function BillingPage() {
     return s - d + t;
   };
 
-  // Customers sorted for display in the dialog (no data mutation)
   const sortedCustomers = sortCustomers(customers, customerSort);
   const sortedInvoices = useMemo(() => {
     const copy = [...invoices];
@@ -126,7 +158,6 @@ export default function BillingPage() {
     return copy;
   }, [invoices, invoiceSort]);
 
-  // Orders filtered by selected customer
   const filteredOrders =
     selectedCustomerId && selectedCustomerId !== "all"
       ? orders.filter((o) => String(o.customerId) === selectedCustomerId)
@@ -170,10 +201,23 @@ export default function BillingPage() {
     load();
   };
 
+  const openUpiDialog = (inv: Invoice) => {
+    setUpiDialog({ open: true, inv });
+    setUpiCopied(false);
+  };
+
+  const copyUpiId = () => {
+    navigator.clipboard.writeText(UPI_ID).then(() => {
+      setUpiCopied(true);
+      setTimeout(() => setUpiCopied(false), 2000);
+    });
+  };
+
   const payOnline = async (inv: Invoice) => {
     setPayingInvoiceId(inv.id);
     try {
       const url = window.location.href;
+      const successUrl = `${url}${url.includes("?") ? "&" : "?"}payment_success=1&inv_id=${String(inv.id)}`;
       const checkoutUrl = await backend.createCheckoutSession(
         [
           {
@@ -185,7 +229,7 @@ export default function BillingPage() {
           },
         ],
         url,
-        url,
+        successUrl,
       );
       window.open(checkoutUrl, "_blank");
     } catch {
@@ -533,6 +577,18 @@ export default function BillingPage() {
                           Mark Paid
                         </button>
                       )}
+                      {paymentStatusKey(inv.paymentStatus) !== "Paid" && (
+                        <button
+                          type="button"
+                          onClick={() => openUpiDialog(inv)}
+                          className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border border-[#7C3AED] text-[#7C3AED] hover:bg-[#7C3AED] hover:text-white transition-colors"
+                          title="Pay via UPI / QR"
+                          data-ocid="billing.upi.button"
+                        >
+                          <span>📲</span>
+                          <span>Pay UPI</span>
+                        </button>
+                      )}
                       {stripeConfigured &&
                         paymentStatusKey(inv.paymentStatus) !== "Paid" && (
                           <button
@@ -761,6 +817,112 @@ export default function BillingPage() {
                 Create
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* UPI Payment Dialog */}
+      <Dialog
+        open={upiDialog.open}
+        onOpenChange={(open) => setUpiDialog((prev) => ({ ...prev, open }))}
+      >
+        <DialogContent
+          className="max-w-sm w-full"
+          data-ocid="billing.upi.dialog"
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#7C3AED] text-white text-sm">
+                📲
+              </span>
+              Pay via UPI
+            </DialogTitle>
+          </DialogHeader>
+
+          {upiDialog.inv && (
+            <div className="space-y-4">
+              {/* Customer & Amount */}
+              <div className="rounded-lg bg-purple-50 border border-purple-100 px-4 py-3 text-center">
+                <p className="text-xs text-purple-500 font-medium mb-0.5">
+                  {upiDialog.inv.customerName}
+                </p>
+                <p className="text-2xl font-bold text-[#7C3AED]">
+                  ₹{upiDialog.inv.total.toFixed(2)}
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  INV-{String(upiDialog.inv.id).padStart(3, "0")}
+                </p>
+              </div>
+
+              {/* QR Code */}
+              <div className="flex justify-center">
+                <img
+                  src={QR_PATH}
+                  alt="UPI QR Code"
+                  className="rounded-lg border border-gray-200 shadow-sm"
+                  style={{ maxWidth: 220, width: "100%" }}
+                />
+              </div>
+
+              {/* Instruction */}
+              <p className="text-center text-xs text-gray-500">
+                Scan QR code or use UPI ID to pay
+              </p>
+
+              {/* UPI ID copy row */}
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide leading-none mb-0.5">
+                    UPI ID
+                  </p>
+                  <p className="text-sm font-mono font-semibold text-gray-800 truncate">
+                    {UPI_ID}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={copyUpiId}
+                  className="flex-shrink-0 flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md border border-[#7C3AED] text-[#7C3AED] hover:bg-[#7C3AED] hover:text-white transition-colors"
+                  title="Copy UPI ID"
+                  data-ocid="billing.upi.copy_button"
+                >
+                  {upiCopied ? (
+                    <Check className="w-3 h-3" />
+                  ) : (
+                    <Copy className="w-3 h-3" />
+                  )}
+                  <span>{upiCopied ? "Copied!" : "Copy"}</span>
+                </button>
+              </div>
+
+              {/* Name */}
+              <div className="flex items-center justify-between text-xs text-gray-500 px-1">
+                <span className="font-medium text-gray-600">Name:</span>
+                <span className="font-semibold text-gray-800">{UPI_NAME}</span>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-2 flex-col sm:flex-row">
+            <Button
+              variant="outline"
+              onClick={() => setUpiDialog({ open: false, inv: null })}
+              data-ocid="billing.upi.cancel_button"
+            >
+              Cancel
+            </Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700 text-white"
+              onClick={async () => {
+                if (upiDialog.inv) {
+                  await markPaid(upiDialog.inv.id);
+                  setUpiDialog({ open: false, inv: null });
+                }
+              }}
+              data-ocid="billing.upi.confirm_button"
+            >
+              ✅ Mark as Paid
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
