@@ -88,6 +88,8 @@ export default function CustomersPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [viewMeasure, setViewMeasure] = useState<Customer | null>(null);
   const [editCustomer, setEditCustomer] = useState<Customer | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   // Photo dialog state
   const [photosCustomer, setPhotosCustomer] = useState<Customer | null>(null);
@@ -241,6 +243,7 @@ export default function CustomersPage() {
 
   const openAdd = () => {
     setEditCustomer(null);
+    setSaveError("");
     setForm({
       name: "",
       phone: "",
@@ -260,6 +263,7 @@ export default function CustomersPage() {
 
   const openEdit = (c: Customer) => {
     setEditCustomer(c);
+    setSaveError("");
     const m = c.measurements[0];
     setForm({
       name: c.name,
@@ -295,27 +299,40 @@ export default function CustomersPage() {
   };
 
   const saveCustomer = async () => {
-    const m = buildMeasurements();
-    if (editCustomer) {
-      await backend.updateCustomer(
-        editCustomer.id,
-        form.name,
-        form.phone,
-        form.email,
-        form.address,
-        m,
-      );
-    } else {
-      await backend.addCustomer(
-        form.name,
-        form.phone,
-        form.email,
-        form.address,
-        m,
-      );
+    if (!form.name.trim()) {
+      setSaveError("Customer name is required.");
+      return;
     }
-    setShowAdd(false);
-    loadCustomers();
+    setSaving(true);
+    setSaveError("");
+    try {
+      const m = buildMeasurements();
+      if (editCustomer) {
+        await backend.updateCustomer(
+          editCustomer.id,
+          form.name,
+          form.phone,
+          form.email,
+          form.address,
+          m,
+        );
+      } else {
+        await backend.addCustomer(
+          form.name,
+          form.phone,
+          form.email,
+          form.address,
+          m,
+        );
+      }
+      setShowAdd(false);
+      loadCustomers();
+    } catch (err) {
+      console.error("Save customer failed:", err);
+      setSaveError("Save failed. Please check your connection and try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const del = async (id: bigint) => {
@@ -553,6 +570,14 @@ export default function CustomersPage() {
               ))}
             </div>
           </div>
+          {saveError && (
+            <div
+              className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2"
+              data-ocid="customers.save.error_state"
+            >
+              ⚠️ {saveError}
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAdd(false)}>
               Cancel
@@ -560,9 +585,17 @@ export default function CustomersPage() {
             <Button
               className="bg-[#1F7E78] hover:bg-[#166661] text-white"
               onClick={saveCustomer}
+              disabled={saving}
               data-ocid="customers.save.submit_button"
             >
-              Save
+              {saving ? (
+                <span className="flex items-center gap-2">
+                  <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                  Saving...
+                </span>
+              ) : (
+                "Save"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
