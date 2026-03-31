@@ -101,11 +101,15 @@ export default function App() {
           }
         }
       }
-      if (!localStorage.getItem("tailorpro_seeded")) {
-        await backend.seedData();
-        localStorage.setItem("tailorpro_seeded", "1");
-      }
       setIsInitializing(false);
+      if (!localStorage.getItem("tailorpro_seeded")) {
+        backend
+          .seedData()
+          .then(() => {
+            localStorage.setItem("tailorpro_seeded", "1");
+          })
+          .catch(() => {});
+      }
     };
     init();
   }, []);
