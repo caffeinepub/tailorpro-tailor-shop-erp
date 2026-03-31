@@ -135,6 +135,7 @@ actor {
   var staffList: [Staff] = [];
   var staffCredentials: [Credential] = [];
   var ownerPassword: Text = "owner@123";
+  var customerPhotosList: [(Nat, [Text])] = [];
 
   // ===== SEED DATA =====
 
@@ -460,6 +461,41 @@ actor {
       monthlyRevenue = monthlyRev;
       todayAppointments = todayAppts;
     }
+  };
+
+
+  // ===== GARMENT PHOTOS (Cloud Storage) =====
+
+  public func addCustomerPhoto(customerId: Nat, hash: Text): async Bool {
+    var found = false;
+    customerPhotosList := Array.map<(Nat, [Text]), (Nat, [Text])>(customerPhotosList, func(entry) {
+      if (entry.0 == customerId) {
+        found := true;
+        (entry.0, Array.append(entry.1, [hash]))
+      } else entry
+    });
+    if (not found) {
+      customerPhotosList := Array.append(customerPhotosList, [(customerId, [hash])]);
+    };
+    true
+  };
+
+  public query func getCustomerPhotos(customerId: Nat): async [Text] {
+    for (entry in customerPhotosList.vals()) {
+      if (entry.0 == customerId) return entry.1;
+    };
+    []
+  };
+
+  public func deleteCustomerPhoto(customerId: Nat, hash: Text): async Bool {
+    var found = false;
+    customerPhotosList := Array.map<(Nat, [Text]), (Nat, [Text])>(customerPhotosList, func(entry) {
+      if (entry.0 == customerId) {
+        found := true;
+        (entry.0, Array.filter<Text>(entry.1, func(h) { h != hash }))
+      } else entry
+    });
+    found
   };
 
 };

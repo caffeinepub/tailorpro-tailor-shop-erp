@@ -1010,6 +1010,38 @@ class LocalBackend implements TailorBackend {
     localStorage.setItem("tailorpro_owner_pw", newPassword);
     return true;
   }
+
+  // Garment photo management (local IDB fallback)
+  async addCustomerPhoto(customerId: bigint, hash: string): Promise<boolean> {
+    const key = `garment_photos_${customerId}`;
+    const stored = await idbGet("photos", key);
+    const existing: string[] = Array.isArray(stored)
+      ? (stored as string[])
+      : [];
+    if (!existing.includes(hash)) {
+      existing.push(hash);
+      await idbSet("photos", key, existing);
+    }
+    return true;
+  }
+  async getCustomerPhotos(customerId: bigint): Promise<string[]> {
+    const key = `garment_photos_${customerId}`;
+    const stored = await idbGet("photos", key);
+    return Array.isArray(stored) ? (stored as string[]) : [];
+  }
+  async deleteCustomerPhoto(
+    customerId: bigint,
+    hash: string,
+  ): Promise<boolean> {
+    const key = `garment_photos_${customerId}`;
+    const stored = await idbGet("photos", key);
+    const existing: string[] = Array.isArray(stored)
+      ? (stored as string[])
+      : [];
+    const updated = existing.filter((h) => h !== hash);
+    await idbSet("photos", key, updated);
+    return true;
+  }
 }
 
 export const localBackend = new LocalBackend();

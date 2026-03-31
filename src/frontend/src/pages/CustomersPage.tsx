@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDebounce } from "react-use";
 import { backend } from "../actor";
+import type { backendInterface as FullBackend } from "../backend.d";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 import {
@@ -19,52 +20,9 @@ import {
   TableHeader,
   TableRow,
 } from "../components/ui/table";
-import { idbGet, idbSet } from "../lib/idb";
+import { useActor } from "../hooks/useActor";
+import { useStorageClient } from "../hooks/useStorageClient";
 import type { Customer, Measurements } from "../tailor-types";
-
-// ── Garment photo key helper ──────────────────────────────────────────────
-function photosKey(customerId: string) {
-  return `garment_photos_${customerId}`;
-}
-
-// Compress image using Canvas to reduce storage size
-function compressImage(
-  file: File,
-  maxWidth = 800,
-  quality = 0.65,
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        let { width, height } = img;
-        if (width > maxWidth) {
-          height = Math.round((height * maxWidth) / width);
-          width = maxWidth;
-        }
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          reject(new Error("canvas_error"));
-          return;
-        }
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", quality));
-      };
-      img.onerror = () => reject(new Error("image_load_error"));
-      img.src = e.target?.result as string;
-    };
-    reader.onerror = () => reject(new Error("file_read_error"));
-    reader.readAsDataURL(file);
-  });
-}
-
-function photoKey(src: string) {
-  return src.slice(0, 40);
-}
 
 type SortOption = "default" | "name_asc" | "name_desc" | "newest" | "oldest";
 
@@ -85,7 +43,12 @@ export default function CustomersPage() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [photoError, setPhotoError] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [photoCounts, setPhotoCounts] = useState<Record<string, number>>({});
+
+  const { actor: _actor } = useActor();
+  const actor = _actor as FullBackend | null;
+  const storageClient = useStorageClient();
 
   // Two separate hidden inputs: one for gallery, one for camera
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -114,29 +77,19 @@ export default function CustomersPage() {
     loadCustomers();
   }, [loadCustomers]);
 
-  // Recompute photo counts from IDB whenever customers list changes
+  // Load photo counts from backend/actor
   useEffect(() => {
+    if (!actor || customers.length === 0) return;
     let cancelled = false;
     const loadCounts = async () => {
       const counts: Record<string, number> = {};
       await Promise.all(
         customers.map(async (c) => {
-          const id = String(c.id);
-          const stored = await idbGet("photos", photosKey(id));
-          if (Array.isArray(stored)) {
-            counts[id] = stored.length;
-          } else {
-            const lsRaw = localStorage.getItem(photosKey(id));
-            if (lsRaw) {
-              try {
-                const parsed = JSON.parse(lsRaw) as string[];
-                counts[id] = parsed.length;
-              } catch {
-                counts[id] = 0;
-              }
-            } else {
-              counts[id] = 0;
-            }
+          try {
+            const urls = await actor.getCustomerPhotos(c.id);
+            counts[String(c.id)] = urls.length;
+          } catch {
+            counts[String(c.id)] = 0;
           }
         }),
       );
@@ -146,79 +99,89 @@ export default function CustomersPage() {
     return () => {
       cancelled = true;
     };
-  }, [customers]);
+  }, [actor, customers]);
 
-  const openPhotos = useCallback(async (c: Customer) => {
-    const id = String(c.id);
-    setPhotosCustomer(c);
-    setPhotoError("");
-
-    const stored = await idbGet("photos", photosKey(id));
-    if (Array.isArray(stored) && stored.length > 0) {
-      setPhotos(stored as string[]);
-      return;
-    }
-
-    const lsRaw = localStorage.getItem(photosKey(id));
-    if (lsRaw) {
-      try {
-        const parsed = JSON.parse(lsRaw) as string[];
-        await idbSet("photos", photosKey(id), parsed);
-        localStorage.removeItem(photosKey(id));
-        setPhotos(parsed);
-      } catch {
-        setPhotos([]);
-      }
-    } else {
+  const openPhotos = useCallback(
+    async (c: Customer) => {
+      setPhotosCustomer(c);
+      setPhotoError("");
       setPhotos([]);
-    }
-  }, []);
+      if (!actor) return;
+      try {
+        const urls = await actor.getCustomerPhotos(c.id);
+        setPhotos(urls);
+      } catch {
+        setPhotoError("Could not load photos. Please try again.");
+      }
+    },
+    [actor],
+  );
 
   const closePhotos = useCallback(() => {
     setPhotosCustomer(null);
     setPhotos([]);
     setPhotoError("");
-    setCustomers((prev) => [...prev]);
+    setUploadProgress(0);
   }, []);
 
   const deletePhoto = useCallback(
-    async (idx: number) => {
-      if (!photosCustomer) return;
-      const id = String(photosCustomer.id);
-      const updated = photos.filter((_, i) => i !== idx);
-      await idbSet("photos", photosKey(id), updated);
-      setPhotos(updated);
-      setPhotoCounts((prev) => ({ ...prev, [id]: updated.length }));
-      setPhotoError("");
+    async (url: string) => {
+      if (!photosCustomer || !actor) return;
+      try {
+        await actor.deleteCustomerPhoto(photosCustomer.id, url);
+        const updated = photos.filter((p) => p !== url);
+        setPhotos(updated);
+        setPhotoCounts((prev) => ({
+          ...prev,
+          [String(photosCustomer.id)]: updated.length,
+        }));
+      } catch {
+        setPhotoError("Could not delete photo. Please try again.");
+      }
     },
-    [photos, photosCustomer],
+    [photos, photosCustomer, actor],
   );
 
   const processFiles = useCallback(
     async (files: File[]) => {
-      if (!photosCustomer || files.length === 0) return;
-      const id = String(photosCustomer.id);
+      if (!photosCustomer || files.length === 0 || !actor) return;
+      if (!storageClient) {
+        setPhotoError("Storage not ready. Please try again in a moment.");
+        return;
+      }
       setUploading(true);
       setPhotoError("");
+      setUploadProgress(0);
+
       try {
-        const compressed = await Promise.all(
-          files.map((f) => compressImage(f)),
-        );
-        const existing = await idbGet("photos", photosKey(id));
-        const existingArr = Array.isArray(existing)
-          ? (existing as string[])
-          : [];
-        const updated = [...existingArr, ...compressed];
-        await idbSet("photos", photosKey(id), updated);
+        const newUrls: string[] = [];
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          const { hash } = await storageClient.putFile(bytes, (pct) =>
+            setUploadProgress(
+              Math.round(((i + pct / 100) / files.length) * 100),
+            ),
+          );
+          const url = await storageClient.getDirectURL(hash);
+          await actor.addCustomerPhoto(photosCustomer.id, url);
+          newUrls.push(url);
+        }
+        const updated = [...photos, ...newUrls];
         setPhotos(updated);
-        setPhotoCounts((prev) => ({ ...prev, [id]: updated.length }));
-      } catch {
+        setPhotoCounts((prev) => ({
+          ...prev,
+          [String(photosCustomer.id)]: updated.length,
+        }));
+      } catch (err) {
+        console.error("Photo upload failed:", err);
         setPhotoError("Could not upload photo. Please try again.");
       } finally {
         setUploading(false);
+        setUploadProgress(0);
       }
     },
-    [photosCustomer],
+    [photosCustomer, actor, storageClient, photos],
   );
 
   const handleFileChange = useCallback(
@@ -595,8 +558,21 @@ export default function CustomersPage() {
 
           {/* Error message */}
           {photoError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2">
+            <div
+              className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2"
+              data-ocid="customers.photos.error_state"
+            >
               ⚠️ {photoError}
+            </div>
+          )}
+
+          {/* Upload progress */}
+          {uploading && uploadProgress > 0 && (
+            <div className="w-full bg-gray-100 rounded-full h-2">
+              <div
+                className="bg-[#1F7E78] h-2 rounded-full transition-all"
+                style={{ width: `${uploadProgress}%` }}
+              />
             </div>
           )}
 
@@ -614,20 +590,20 @@ export default function CustomersPage() {
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-3">
-              {photos.map((src, idx) => (
+              {photos.map((url, idx) => (
                 <div
-                  key={photoKey(src)}
+                  key={url}
                   className="relative group rounded-lg overflow-hidden border border-gray-200"
                   data-ocid={`customers.photos.item.${idx + 1}`}
                 >
                   <img
-                    src={src}
+                    src={url}
                     alt={`Garment ${idx + 1}`}
                     className="w-full h-28 object-cover"
                   />
                   <button
                     type="button"
-                    onClick={() => deletePhoto(idx)}
+                    onClick={() => deletePhoto(url)}
                     className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                     title="Delete photo"
                     data-ocid={`customers.photos.delete_button.${idx + 1}`}
@@ -684,7 +660,7 @@ export default function CustomersPage() {
               {uploading ? (
                 <span className="flex items-center gap-2">
                   <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                  Uploading...
+                  {uploadProgress > 0 ? `${uploadProgress}%` : "Uploading..."}
                 </span>
               ) : (
                 "📷 Camera"

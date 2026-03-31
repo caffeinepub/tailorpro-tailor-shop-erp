@@ -155,4 +155,8 @@ export interface backendInterface {
   deleteStaffCredentials(phone: string): Promise<void>;
   getOwnerPassword(): Promise<string>;
   setOwnerPassword(newPassword: string): Promise<boolean>;
+  // Garment photos (cloud)
+  addCustomerPhoto(customerId: bigint, hash: string): Promise<boolean>;
+  getCustomerPhotos(customerId: bigint): Promise<string[]>;
+  deleteCustomerPhoto(customerId: bigint, hash: string): Promise<boolean>;
 }

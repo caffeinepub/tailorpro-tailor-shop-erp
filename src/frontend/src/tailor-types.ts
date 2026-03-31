@@ -244,4 +244,8 @@ export interface TailorBackend {
   deleteStaffCredentials(phone: string): Promise<void>;
   getOwnerPassword(): Promise<string>;
   setOwnerPassword(newPassword: string): Promise<boolean>;
+  // Garment photo management (cloud blob storage)
+  addCustomerPhoto(customerId: bigint, hash: string): Promise<boolean>;
+  getCustomerPhotos(customerId: bigint): Promise<string[]>;
+  deleteCustomerPhoto(customerId: bigint, hash: string): Promise<boolean>;
 }
