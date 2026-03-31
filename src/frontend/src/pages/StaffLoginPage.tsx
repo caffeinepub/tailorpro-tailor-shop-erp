@@ -213,10 +213,6 @@ export default function StaffLoginPage({ onLogin }: StaffLoginPageProps) {
                   onChange={(e) => setOwnerPassword(e.target.value)}
                   className="w-full"
                 />
-                <p className="text-xs text-gray-400 mt-1">
-                  Default: mobile <strong>9999999999</strong>, password{" "}
-                  <strong>owner@123</strong>
-                </p>
               </div>
               {ownerError && (
                 <div className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
