@@ -1,58 +1,62 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { backend } from "../actor";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 
-const OWNER_CREDS_KEY = "tailorpro_owner_creds";
-
-function getOwnerCreds() {
-  const raw = localStorage.getItem(OWNER_CREDS_KEY);
-  if (raw) {
-    try {
-      return JSON.parse(raw) as {
-        mobile: string;
-        password: string;
-        name: string;
-      };
-    } catch {}
-  }
-  return { mobile: "9999999999", password: "owner@123", name: "Shop Owner" };
-}
-
 export default function OwnerSettingsPage() {
-  const creds = getOwnerCreds();
-  const [name, setName] = useState(creds.name);
-  const [mobile, setMobile] = useState(creds.mobile);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSave = (e: React.FormEvent) => {
+  // Keep name/mobile editable in UI (display only, owner mobile stays 9999999999)
+  const [name, setName] = useState("Shop Owner");
+  const [mobile] = useState("9999999999");
+
+  useEffect(() => {
+    // Load owner name from session if available
+    try {
+      const session = localStorage.getItem("tailorpro_owner_session");
+      if (session) {
+        const parsed = JSON.parse(session);
+        if (parsed.name) setName(parsed.name);
+      }
+    } catch {}
+  }, []);
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setSaved(false);
-    if (!name.trim() || !mobile.trim()) {
-      setError("Name and mobile are required.");
-      return;
-    }
     if (newPassword && newPassword !== confirmPassword) {
       setError("Passwords do not match.");
       return;
     }
-    const updated = {
-      name: name.trim(),
-      mobile: mobile.trim(),
-      password: newPassword || creds.password,
-    };
-    localStorage.setItem(OWNER_CREDS_KEY, JSON.stringify(updated));
-    localStorage.setItem(
-      "tailorpro_owner_session",
-      JSON.stringify({ name: updated.name }),
-    );
-    setNewPassword("");
-    setConfirmPassword("");
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    setLoading(true);
+    try {
+      if (newPassword) {
+        const ok = await backend.setOwnerPassword(newPassword);
+        if (!ok) {
+          setError("Failed to save password. Please try again.");
+          setLoading(false);
+          return;
+        }
+      }
+      // Save name to session
+      localStorage.setItem(
+        "tailorpro_owner_session",
+        JSON.stringify({ name: name.trim() }),
+      );
+      setNewPassword("");
+      setConfirmPassword("");
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch {
+      setError("Failed to save settings. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -91,9 +95,12 @@ export default function OwnerSettingsPage() {
               id="owner-mobile"
               type="tel"
               value={mobile}
-              onChange={(e) => setMobile(e.target.value)}
-              placeholder="e.g. 9999999999"
+              readOnly
+              className="bg-gray-50 text-gray-500"
             />
+            <p className="text-xs text-gray-400 mt-1">
+              Owner mobile is fixed and cannot be changed.
+            </p>
           </div>
 
           <hr className="border-gray-100" />
@@ -144,16 +151,17 @@ export default function OwnerSettingsPage() {
             type="submit"
             className="w-full font-semibold text-white"
             style={{ background: "#b45309" }}
+            disabled={loading}
           >
-            Save Changes
+            {loading ? "Saving..." : "Save Changes"}
           </Button>
         </form>
       </div>
 
       <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
         <strong>Current login:</strong> Mobile{" "}
-        <code className="font-mono">{creds.mobile}</code> — password is hidden
-        for security.
+        <code className="font-mono">{mobile}</code> — password is hidden for
+        security. Passwords are now saved to the cloud.
       </div>
     </div>
   );

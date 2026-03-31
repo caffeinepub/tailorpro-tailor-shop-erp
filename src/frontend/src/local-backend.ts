@@ -986,6 +986,30 @@ class LocalBackend implements TailorBackend {
     await save(KEYS.staff, filtered);
     return true;
   }
+
+  // Cloud credential stubs (use localStorage as fallback for local dev)
+  async setStaffPassword(phone: string, password: string): Promise<boolean> {
+    localStorage.setItem(`tailorpro_pw_${phone}`, password);
+    return true;
+  }
+  async verifyStaffPassword(phone: string, password: string): Promise<boolean> {
+    const stored = localStorage.getItem(`tailorpro_pw_${phone}`);
+    if (stored === null) return true; // first-time login
+    return stored === password;
+  }
+  async hasStaffPassword(phone: string): Promise<boolean> {
+    return localStorage.getItem(`tailorpro_pw_${phone}`) !== null;
+  }
+  async deleteStaffCredentials(phone: string): Promise<void> {
+    localStorage.removeItem(`tailorpro_pw_${phone}`);
+  }
+  async getOwnerPassword(): Promise<string> {
+    return localStorage.getItem("tailorpro_owner_pw") ?? "owner@123";
+  }
+  async setOwnerPassword(newPassword: string): Promise<boolean> {
+    localStorage.setItem("tailorpro_owner_pw", newPassword);
+    return true;
+  }
 }
 
 export const localBackend = new LocalBackend();

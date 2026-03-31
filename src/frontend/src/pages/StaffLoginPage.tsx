@@ -17,22 +17,6 @@ interface StaffLoginPageProps {
 }
 
 const DEFAULT_OWNER_MOBILE = "9999999999";
-const DEFAULT_OWNER_PASSWORD = "owner@123";
-const OWNER_CREDS_KEY = "tailorpro_owner_creds";
-
-function getOwnerCreds(): { mobile: string; password: string; name: string } {
-  const raw = localStorage.getItem(OWNER_CREDS_KEY);
-  if (raw) {
-    try {
-      return JSON.parse(raw);
-    } catch {}
-  }
-  return {
-    mobile: DEFAULT_OWNER_MOBILE,
-    password: DEFAULT_OWNER_PASSWORD,
-    name: "Shop Owner",
-  };
-}
 
 export default function StaffLoginPage({ onLogin }: StaffLoginPageProps) {
   const [tab, setTab] = useState<"owner" | "staff">("owner");
@@ -56,17 +40,23 @@ export default function StaffLoginPage({ onLogin }: StaffLoginPageProps) {
       setOwnerError("Enter both mobile and password.");
       return;
     }
-    setOwnerLoading(true);
-    const creds = getOwnerCreds();
-    if (
-      ownerMobile.trim() === creds.mobile &&
-      ownerPassword === creds.password
-    ) {
-      onLogin({ role: "owner", ownerName: creds.name });
-    } else {
+    if (ownerMobile.trim() !== DEFAULT_OWNER_MOBILE) {
       setOwnerError("Incorrect owner credentials.");
+      return;
     }
-    setOwnerLoading(false);
+    setOwnerLoading(true);
+    try {
+      const cloudPassword = await backend.getOwnerPassword();
+      if (ownerPassword === cloudPassword) {
+        onLogin({ role: "owner", ownerName: "Shop Owner" });
+      } else {
+        setOwnerError("Incorrect owner credentials.");
+      }
+    } catch {
+      setOwnerError("Login failed. Please try again.");
+    } finally {
+      setOwnerLoading(false);
+    }
   };
 
   const handleStaffSubmit = async (e: React.FormEvent) => {
@@ -85,12 +75,11 @@ export default function StaffLoginPage({ onLogin }: StaffLoginPageProps) {
         setLoading(false);
         return;
       }
-      const storedPw = localStorage.getItem(
-        `tailorpro_pw_${matched.phone.trim()}`,
+      const ok = await backend.verifyStaffPassword(
+        matched.phone.trim(),
+        password,
       );
-      if (storedPw === null) {
-        onLogin({ role: "staff", staff: matched });
-      } else if (storedPw === password) {
+      if (ok) {
         onLogin({ role: "staff", staff: matched });
       } else {
         setError("Incorrect password. Please try again.");

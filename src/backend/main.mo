@@ -101,6 +101,11 @@ actor {
     createdAt: Int;
   };
 
+  public type Credential = {
+    phone: Text;
+    password: Text;
+  };
+
   public type DashboardStats = {
     totalCustomers: Nat;
     totalOrders: Nat;
@@ -128,6 +133,8 @@ actor {
   var inventory: [FabricInventory] = [];
   var invoices: [Invoice] = [];
   var staffList: [Staff] = [];
+  var staffCredentials: [Credential] = [];
+  var ownerPassword: Text = "owner@123";
 
   // ===== SEED DATA =====
 
@@ -361,6 +368,57 @@ actor {
     let before = staffList.size();
     staffList := Array.filter<Staff>(staffList, func(s) { s.id != id });
     staffList.size() < before
+  };
+
+  // ===== STAFF CREDENTIALS (Cloud Auth) =====
+
+  /// Set or update password for a staff member by phone number
+  public func setStaffPassword(phone: Text, password: Text): async Bool {
+    let trimPhone = phone;
+    var found = false;
+    staffCredentials := Array.map<Credential, Credential>(staffCredentials, func(c) {
+      if (c.phone == trimPhone) { found := true; { phone=trimPhone; password } }
+      else c
+    });
+    if (not found) {
+      staffCredentials := Array.append(staffCredentials, [{ phone=trimPhone; password }]);
+    };
+    true
+  };
+
+  /// Verify staff password. Returns true if password matches or no password set yet (first login).
+  public query func verifyStaffPassword(phone: Text, password: Text): async Bool {
+    for (c in staffCredentials.vals()) {
+      if (c.phone == phone) {
+        return c.password == password;
+      };
+    };
+    // No password set yet - allow blank or any password (first time login)
+    true
+  };
+
+  /// Check if a staff member has set a password
+  public query func hasStaffPassword(phone: Text): async Bool {
+    for (c in staffCredentials.vals()) {
+      if (c.phone == phone) return true;
+    };
+    false
+  };
+
+  /// Remove staff credentials when staff is deleted
+  public func deleteStaffCredentials(phone: Text): async () {
+    staffCredentials := Array.filter<Credential>(staffCredentials, func(c) { c.phone != phone });
+  };
+
+  // ===== OWNER PASSWORD (Cloud Auth) =====
+
+  /// Get owner password (for login verification)
+  public query func getOwnerPassword(): async Text { ownerPassword };
+
+  /// Change owner password
+  public func setOwnerPassword(newPassword: Text): async Bool {
+    ownerPassword := newPassword;
+    true
   };
 
   // ===== DASHBOARD =====

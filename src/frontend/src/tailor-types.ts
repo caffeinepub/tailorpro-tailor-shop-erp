@@ -237,4 +237,11 @@ export interface TailorBackend {
     address: string,
   ): Promise<boolean>;
   deleteStaff(id: bigint): Promise<boolean>;
+  // Cloud credential management
+  setStaffPassword(phone: string, password: string): Promise<boolean>;
+  verifyStaffPassword(phone: string, password: string): Promise<boolean>;
+  hasStaffPassword(phone: string): Promise<boolean>;
+  deleteStaffCredentials(phone: string): Promise<void>;
+  getOwnerPassword(): Promise<string>;
+  setOwnerPassword(newPassword: string): Promise<boolean>;
 }

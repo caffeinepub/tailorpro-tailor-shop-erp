@@ -51,10 +51,13 @@ function WhatsAppIcon() {
   );
 }
 
+type SortOption = "newest" | "oldest" | "nameAZ" | "nameZA";
+
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [filter, setFilter] = useState("All");
+  const [sortBy, setSortBy] = useState<SortOption>("newest");
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({
     customerId: "",
@@ -114,13 +117,28 @@ export default function OrdersPage() {
     Ready: { Delivered: null },
   };
 
-  const filtered = useMemo(
-    () =>
+  const filtered = useMemo(() => {
+    let list =
       filter === "All"
-        ? orders
-        : orders.filter((o) => orderStatusKey(o.status) === filter),
-    [orders, filter],
-  );
+        ? [...orders]
+        : orders.filter((o) => orderStatusKey(o.status) === filter);
+
+    switch (sortBy) {
+      case "newest":
+        list.sort((a, b) => Number(b.id) - Number(a.id));
+        break;
+      case "oldest":
+        list.sort((a, b) => Number(a.id) - Number(b.id));
+        break;
+      case "nameAZ":
+        list.sort((a, b) => a.customerName.localeCompare(b.customerName));
+        break;
+      case "nameZA":
+        list.sort((a, b) => b.customerName.localeCompare(a.customerName));
+        break;
+    }
+    return list;
+  }, [orders, filter, sortBy]);
 
   const addOrder = async () => {
     const cust = customers.find((c) => String(c.id) === form.customerId);
@@ -239,21 +257,37 @@ export default function OrdersPage() {
         </Button>
       </div>
 
-      <div className="flex gap-2 mb-4 flex-wrap">
-        {statusOptions.map((s) => (
-          <button
-            type="button"
-            key={s}
-            onClick={() => setFilter(s)}
-            className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
-              filter === s
-                ? "bg-[#1F7E78] text-white border-[#1F7E78]"
-                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-            }`}
-          >
-            {s === "InProduction" ? "In Production" : s}
-          </button>
-        ))}
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <div className="flex gap-2 flex-wrap flex-1">
+          {statusOptions.map((s) => (
+            <button
+              type="button"
+              key={s}
+              onClick={() => setFilter(s)}
+              className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                filter === s
+                  ? "bg-[#1F7E78] text-white border-[#1F7E78]"
+                  : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+              }`}
+            >
+              {s === "InProduction" ? "In Production" : s}
+            </button>
+          ))}
+        </div>
+        <Select
+          value={sortBy}
+          onValueChange={(v) => setSortBy(v as SortOption)}
+        >
+          <SelectTrigger className="w-[150px] text-xs h-8">
+            <SelectValue placeholder="Sort" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="newest">Newest First</SelectItem>
+            <SelectItem value="oldest">Oldest First</SelectItem>
+            <SelectItem value="nameAZ">Name A→Z</SelectItem>
+            <SelectItem value="nameZA">Name Z→A</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <Card className="border-0 shadow-sm">
@@ -262,6 +296,7 @@ export default function OrdersPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50">
+                  <TableHead className="text-xs">S.No.</TableHead>
                   <TableHead className="text-xs">Order #</TableHead>
                   <TableHead className="text-xs">Customer</TableHead>
                   <TableHead className="text-xs">Garment</TableHead>
@@ -276,15 +311,18 @@ export default function OrdersPage() {
                 {filtered.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={9}
                       className="text-center text-sm text-gray-400 py-8"
                     >
                       No orders
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filtered.map((o) => (
+                  filtered.map((o, idx) => (
                     <TableRow key={String(o.id)}>
+                      <TableCell className="text-xs text-gray-500">
+                        {idx + 1}
+                      </TableCell>
                       <TableCell className="text-xs font-mono">
                         #{String(o.id).padStart(3, "0")}
                       </TableCell>

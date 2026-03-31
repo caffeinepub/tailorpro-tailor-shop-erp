@@ -260,9 +260,14 @@ function SetPasswordDialog({
   const [success, setSuccess] = useState(false);
 
   const trimmedPhone = staff.phone.trim();
-  const hasExisting = !!localStorage.getItem(`tailorpro_pw_${trimmedPhone}`);
+  const [hasExisting, setHasExisting] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
+  useEffect(() => {
+    backend.hasStaffPassword(trimmedPhone).then(setHasExisting);
+  }, [trimmedPhone]);
+
+  const handleSave = async () => {
     setError("");
     if (!newPw) {
       setError("Password cannot be empty.");
@@ -272,9 +277,16 @@ function SetPasswordDialog({
       setError("Passwords do not match.");
       return;
     }
-    localStorage.setItem(`tailorpro_pw_${trimmedPhone}`, newPw);
-    setSuccess(true);
-    setTimeout(() => onClose(), 1200);
+    setSaving(true);
+    try {
+      await backend.setStaffPassword(trimmedPhone, newPw);
+      setSuccess(true);
+      setTimeout(() => onClose(), 1200);
+    } catch {
+      setError("Failed to save password. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -344,9 +356,10 @@ function SetPasswordDialog({
           <Button
             className="bg-[#1F7E78] hover:bg-[#166661] text-white"
             onClick={handleSave}
+            disabled={saving}
             data-ocid="set_password.save_button"
           >
-            Save Password
+            {saving ? "Saving..." : "Save Password"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -361,7 +374,10 @@ export default function StaffPage() {
   const [viewCard, setViewCard] = useState<Staff | null>(null);
   const [setPwStaff, setSetPwStaff] = useState<Staff | null>(null);
   const [search, setSearch] = useState("");
-  const [pwRefresh, setPwRefresh] = useState(0);
+  const [_pwRefresh, setPwRefresh] = useState(0);
+  const [staffHasPassword, setStaffHasPassword] = useState<
+    Record<string, boolean>
+  >({});
   const [copiedPhone, setCopiedPhone] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
@@ -375,7 +391,17 @@ export default function StaffPage() {
     address: "",
   });
 
-  const load = useCallback(() => backend.getStaff().then(setStaffList), []);
+  const load = useCallback(async () => {
+    const list = await backend.getStaff();
+    setStaffList(list);
+    const entries = await Promise.all(
+      list.map(async (s) => {
+        const hasPw = await backend.hasStaffPassword(s.phone.trim());
+        return [s.phone.trim(), hasPw] as [string, boolean];
+      }),
+    );
+    setStaffHasPassword(Object.fromEntries(entries));
+  }, []);
   useEffect(() => {
     load();
   }, [load]);
@@ -471,16 +497,18 @@ export default function StaffPage() {
   const handleSetPwClose = () => {
     setSetPwStaff(null);
     setPwRefresh((n) => n + 1);
+    load();
   };
 
-  const handleResetPassword = (phone: string) => {
+  const handleResetPassword = async (phone: string) => {
     if (
       confirm(
         "Reset this staff member's password? They won't be able to log in until a new password is set.",
       )
     ) {
-      localStorage.removeItem(`tailorpro_pw_${phone.trim()}`);
+      await backend.deleteStaffCredentials(phone.trim());
       setPwRefresh((n) => n + 1);
+      load();
     }
   };
 
@@ -548,9 +576,7 @@ export default function StaffPage() {
                 {filtered.map((s, idx) => {
                   const roleLabel = getRoleLabel(s.role);
                   const color = ROLE_COLORS[roleLabel];
-                  const hasPw = !!localStorage.getItem(
-                    `tailorpro_pw_${s.phone.trim()}`,
-                  );
+                  const hasPw = staffHasPassword[s.phone.trim()] ?? false;
                   return (
                     <div
                       key={String(s.id)}
@@ -698,11 +724,7 @@ export default function StaffPage() {
                         const roleLabel = getRoleLabel(s.role);
                         const color = ROLE_COLORS[roleLabel];
                         // pwRefresh is read to re-render when passwords change
-                        const hasPw =
-                          pwRefresh >= 0 &&
-                          !!localStorage.getItem(
-                            `tailorpro_pw_${s.phone.trim()}`,
-                          );
+                        const hasPw = staffHasPassword[s.phone.trim()] ?? false;
                         return (
                           <TableRow
                             key={String(s.id)}

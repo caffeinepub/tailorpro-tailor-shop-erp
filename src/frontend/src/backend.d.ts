@@ -148,4 +148,11 @@ export interface backendInterface {
   createInvoice(orderId: bigint, customerId: bigint, customerName: string, subtotal: number, discount: number, tax: number, total: number, paymentMethod: string): Promise<Invoice>;
   updateInvoicePayment(id: bigint, paymentStatus: PaymentStatus): Promise<boolean>;
   getDashboardStats(): Promise<DashboardStats>;
+  // Staff credential management (cloud)
+  setStaffPassword(phone: string, password: string): Promise<boolean>;
+  verifyStaffPassword(phone: string, password: string): Promise<boolean>;
+  hasStaffPassword(phone: string): Promise<boolean>;
+  deleteStaffCredentials(phone: string): Promise<void>;
+  getOwnerPassword(): Promise<string>;
+  setOwnerPassword(newPassword: string): Promise<boolean>;
 }
