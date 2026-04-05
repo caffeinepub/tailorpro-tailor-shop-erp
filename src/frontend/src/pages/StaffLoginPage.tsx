@@ -17,6 +17,7 @@ interface StaffLoginPageProps {
 }
 
 const DEFAULT_OWNER_MOBILE = "9999999999";
+const DEFAULT_OWNER_PASSWORD = "owner@123";
 
 export default function StaffLoginPage({ onLogin }: StaffLoginPageProps) {
   const [tab, setTab] = useState<"owner" | "staff">("owner");
@@ -46,14 +47,22 @@ export default function StaffLoginPage({ onLogin }: StaffLoginPageProps) {
     }
     setOwnerLoading(true);
     try {
-      const cloudPassword = await backend.getOwnerPassword();
-      if (ownerPassword === cloudPassword) {
+      // Try cloud backend first, fall back to local storage, then default
+      let correctPassword = DEFAULT_OWNER_PASSWORD;
+      try {
+        correctPassword = await backend.getOwnerPassword();
+      } catch {
+        // Cloud unreachable -- try localStorage cache
+        const cached = localStorage.getItem("tailorpro_owner_pw");
+        if (cached) correctPassword = cached;
+      }
+      if (ownerPassword === correctPassword) {
         onLogin({ role: "owner", ownerName: "Shop Owner" });
       } else {
         setOwnerError("Incorrect owner credentials.");
       }
     } catch {
-      setOwnerError("Login failed. Please try again.");
+      setOwnerError("Something went wrong. Please try again.");
     } finally {
       setOwnerLoading(false);
     }
