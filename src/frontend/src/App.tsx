@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, useState } from "react";
 import { backend } from "./actor";
+import { sessionGet, sessionRemove, sessionSet } from "./lib/sessionStore";
 import StaffLoginPage, { type LoginResult } from "./pages/StaffLoginPage";
 import type { Staff } from "./tailor-types";
 
@@ -81,32 +82,34 @@ export default function App() {
 
   useEffect(() => {
     const init = async () => {
-      const ownerSession = localStorage.getItem("tailorpro_owner_session");
+      // Read sessions from persistent IndexedDB store (falls back to localStorage)
+      const ownerSession = await sessionGet("tailorpro_owner_session");
       if (ownerSession) {
         try {
           const parsed = JSON.parse(ownerSession);
           setIsOwner(true);
           setOwnerName(parsed.name || "Shop Owner");
         } catch {
-          localStorage.removeItem("tailorpro_owner_session");
+          await sessionRemove("tailorpro_owner_session");
         }
       } else {
-        const session = localStorage.getItem("tailorpro_staff_session");
+        const session = await sessionGet("tailorpro_staff_session");
         if (session) {
           try {
             const parsed = JSON.parse(session);
             setLoggedInStaff(parsed as Staff);
           } catch {
-            localStorage.removeItem("tailorpro_staff_session");
+            await sessionRemove("tailorpro_staff_session");
           }
         }
       }
       setIsInitializing(false);
-      if (!localStorage.getItem("tailorpro_seeded")) {
+      const seeded = await sessionGet("tailorpro_seeded");
+      if (!seeded) {
         backend
           .seedData()
-          .then(() => {
-            localStorage.setItem("tailorpro_seeded", "1");
+          .then(async () => {
+            await sessionSet("tailorpro_seeded", "1");
           })
           .catch(() => {});
       }
@@ -114,14 +117,14 @@ export default function App() {
     init();
   }, []);
 
-  const handleLogin = (result: LoginResult) => {
+  const handleLogin = async (result: LoginResult) => {
     if (result.role === "owner") {
       const name = result.ownerName || "Shop Owner";
-      localStorage.setItem("tailorpro_owner_session", JSON.stringify({ name }));
+      await sessionSet("tailorpro_owner_session", JSON.stringify({ name }));
       setIsOwner(true);
       setOwnerName(name);
     } else if (result.staff) {
-      localStorage.setItem(
+      await sessionSet(
         "tailorpro_staff_session",
         JSON.stringify({
           id: String(result.staff.id),
@@ -133,9 +136,9 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("tailorpro_owner_session");
-    localStorage.removeItem("tailorpro_staff_session");
+  const handleLogout = async () => {
+    await sessionRemove("tailorpro_owner_session");
+    await sessionRemove("tailorpro_staff_session");
     setLoggedInStaff(null);
     setIsOwner(false);
     setActiveNav("Dashboard");

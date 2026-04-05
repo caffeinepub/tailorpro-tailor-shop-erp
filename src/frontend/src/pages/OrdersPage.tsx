@@ -52,6 +52,7 @@ function WhatsAppIcon() {
 }
 
 type SortOption = "newest" | "oldest" | "nameAZ" | "nameZA";
+type WaType = "pending" | "ready" | "thankyou";
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -203,17 +204,42 @@ export default function OrdersPage() {
     }
   };
 
-  const openWhatsAppDialog = (o: Order, type: "ready" | "thankyou") => {
+  const openWhatsAppDialog = (o: Order, type: WaType) => {
     const customer = customers.find(
       (c) => String(c.id) === String(o.customerId),
     );
     const phone = customer?.phone?.replace(/\D/g, "") ?? "";
     const dueStr = fmtDate(o.dueDate);
+    const balance = o.price - o.advancePaid;
 
     let message: string;
     let title: string;
 
-    if (type === "ready") {
+    if (type === "pending") {
+      title = "Order Confirmation";
+      message = [
+        "📋 *Ali Tailor - Order Confirmed!*",
+        "",
+        `Dear ${o.customerName},`,
+        "Your order has been received and is being processed. 🧵",
+        "",
+        `Order: #${String(o.id).padStart(3, "0")}`,
+        `Garment: ${garmentKey(o.garmentType)}`,
+        `Fabric: ${o.fabricName}${o.fabricColor ? ` — ${o.fabricColor}` : ""}`,
+        `Quantity: ${o.quantity}`,
+        `Total Amount: ₹${o.price}`,
+        o.advancePaid > 0 ? `Advance Paid: ₹${o.advancePaid}` : "",
+        balance > 0 ? `Balance Due: ₹${balance}` : "",
+        `Due Date: ${dueStr}`,
+        o.notes ? `Notes: ${o.notes}` : "",
+        "",
+        "We will notify you when your order is ready. Thank you! 🙏",
+        "",
+        "Ali Tailor 🧵",
+      ]
+        .filter((line) => line !== "")
+        .join("\n");
+    } else if (type === "ready") {
       title = "Order Ready Notification";
       message = [
         "✅ *Ali Tailor - Order Ready!*",
@@ -227,7 +253,7 @@ export default function OrdersPage() {
         `Due Date: ${dueStr}`,
         `Amount: ₹${o.price}`,
         o.advancePaid > 0 ? `Advance Paid: ₹${o.advancePaid}` : "",
-        o.advancePaid > 0 ? `Balance Due: ₹${o.price - o.advancePaid}` : "",
+        balance > 0 ? `Balance Due: ₹${balance}` : "",
         "",
         "Please visit our shop to collect your garment.",
         "Thank you for choosing Ali Tailor! 🧵",
@@ -247,9 +273,7 @@ export default function OrdersPage() {
         `Fabric: ${o.fabricName}${o.fabricColor ? ` — ${o.fabricColor}` : ""}`,
         `Total: ₹${o.price}`,
         o.advancePaid > 0 ? `Paid: ₹${o.advancePaid}` : "",
-        o.advancePaid > 0 && o.price - o.advancePaid > 0
-          ? `Balance: ₹${o.price - o.advancePaid}`
-          : "",
+        o.advancePaid > 0 && balance > 0 ? `Balance: ₹${balance}` : "",
         "",
         "We hope you love your new outfit! 😊",
         "Please visit us again or share with your friends.",
@@ -397,6 +421,17 @@ export default function OrdersPage() {
                               className="text-xs text-[#1F7E78] hover:underline"
                             >
                               Advance
+                            </button>
+                          )}
+                          {orderStatusKey(o.status) === "Pending" && (
+                            <button
+                              type="button"
+                              onClick={() => openWhatsAppDialog(o, "pending")}
+                              className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border border-[#25D366] text-[#25D366] hover:bg-[#25D366] hover:text-white transition-colors"
+                              title="Send order confirmation on WhatsApp"
+                            >
+                              <WhatsAppIcon />
+                              <span>Confirm</span>
                             </button>
                           )}
                           {orderStatusKey(o.status) === "Ready" && (
@@ -612,7 +647,7 @@ export default function OrdersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* WhatsApp Dialog (Ready / Thank You) */}
+      {/* WhatsApp Dialog */}
       <Dialog
         open={waDialog.open}
         onOpenChange={(open) => setWaDialog((prev) => ({ ...prev, open }))}
